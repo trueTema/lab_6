@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 #include <string>
 #include <list>
 #include <optional>
@@ -6,6 +7,7 @@
 #include <unordered_map>
 #include "exception.h"
 #include <fstream>
+#include <queue>
 
 
 
@@ -208,6 +210,84 @@ namespace graph_ns {
 		using node = node<NodeInfo>;
 		using edge = edge<EdgeInfo, WType>;
 		using path = path<EdgeInfo, WType>;
+	private:
+		path find_min_dist_dijkstra(size_t id_f, size_t id_t) {
+			std::unordered_map<size_t, std::optional<WType>> dist;
+			std::unordered_map<size_t, const edge*> parents;
+			parents.reserve(n);
+			dist.reserve(n);
+			dist[id_f] = WType();
+			for (typename std::unordered_map<size_t, node>::const_iterator it = nodes.cbegin(); it != nodes.cend(); it++) {
+				int v = -1;
+				for (typename std::unordered_map<size_t, std::optional<WType>>::iterator itd = dist.begin(); itd != dist.end(); itd++) {
+					if (nodes[(*itd).first].get_color() == 0) {
+						if (v == -1 || (dist[(*itd).first].has_value() && dist[v].has_value() && dist[(*itd).first].value() < dist[v].value())) {
+							v = (*itd).first;
+						}
+						else if (!dist[v].has_value() && dist[(*itd).first].has_value()) {
+							v = (*itd).first;
+						}
+					}
+				}
+				if (!dist[v].has_value()) break;
+				nodes[v].set_color(1);
+				for (typename std::list<edge>::const_iterator it = incidences_list[v].cbegin(); it != incidences_list[v].cend(); it++) {
+					WType len = (*it).get_weight();
+					size_t id_to = (*it).get_to();
+					if ((!dist[id_to].has_value()) || dist[id_to].value() > dist[v].value() + len) {
+						dist[id_to] = dist[v].value() + len;
+						parents[id_to] = &(*it);
+					}
+				}
+			}
+			for (typename std::unordered_map<size_t, node>::iterator it = nodes.begin(); it != nodes.end(); it++) {
+				(*it).second.set_color(0);
+			}
+			if (!dist[id_t].has_value()) throw SetException(GraphNotConnective);
+			path res;
+			for (size_t cur_id = id_t; cur_id != id_f; cur_id = parents[cur_id]->get_from()) {
+				res.push_tobegin(*parents[cur_id]);
+			}
+			return res;
+		}
+		path find_min_dist_bfs(size_t id_f, size_t id_t) {
+			std::unordered_map<size_t, std::optional<WType>> dist;
+			std::unordered_map<size_t, const edge*> parents;
+			parents.reserve(n);
+			dist.reserve(n);
+			dist[id_f] = WType();
+			std::queue<size_t> id_queue;
+			id_queue.push(id_f);
+			nodes[id_f].set_color(1);
+			for (; id_queue.size();) {
+				int v = id_queue.front();
+				id_queue.pop();
+				if (v == id_t) break;
+				if (!dist[v].has_value()) break;
+				
+				for (typename std::list<edge>::const_iterator it = incidences_list[v].cbegin(); it != incidences_list[v].cend(); it++) {
+					size_t id_to = (*it).get_to();
+					if (nodes[id_to].get_color() == 0) {
+						id_queue.push(id_to);
+						nodes[id_to].set_color(1);
+						if ((!dist[id_to].has_value()) || dist[id_to].value() > dist[v].value() + 1) {
+							dist[id_to] = dist[v].value() + 1;
+							parents[id_to] = &(*it);
+						}
+					}
+				}
+			}
+			for (typename std::unordered_map<size_t, node>::iterator it = nodes.begin(); it != nodes.end(); it++) {
+				(*it).second.set_color(0);
+			}
+			if (!dist[id_t].has_value()) throw SetException(GraphNotConnective);
+			path res;
+			for (size_t cur_id = id_t; cur_id != id_f; cur_id = parents[cur_id]->get_from()) {
+				res.push_tobegin(*parents[cur_id]);
+			}
+			return res;
+		}
+		size_t weight_edges = 0;
 	protected:
 		std::unordered_map<size_t, std::list<edge>> incidences_list;
 		std::unordered_map<size_t, node> nodes;
@@ -263,6 +343,7 @@ namespace graph_ns {
 		}
 		size_t n;
 		size_t m;
+
 	public:
 		graph() = default;
 		size_t n_count() const noexcept {
@@ -273,43 +354,13 @@ namespace graph_ns {
 		}
 		
 		path find_min_dist(size_t id_f, size_t id_t) {
-			std::unordered_map<size_t, std::optional<WType>> dist;
-			std::unordered_map<size_t, const edge*> parents;
-			parents.reserve(n);
-			dist.reserve(n);
-			dist[id_f] = WType();
-			for (typename std::unordered_map<size_t, node>::const_iterator it = nodes.cbegin(); it != nodes.cend(); it++) {
-				int v = -1;
-				for (typename std::unordered_map<size_t, std::optional<WType>>::iterator itd = dist.begin(); itd != dist.end(); itd++) {
-					if (nodes[(*itd).first].get_color() == 0) {
-						if (v == -1 || (dist[(*itd).first].has_value() && dist[v].has_value() && dist[(*itd).first].value() < dist[v].value())) {
-							v = (*itd).first;
-						}
-						else if (!dist[v].has_value() && dist[(*itd).first].has_value()) {
-							v = (*itd).first;
-						}
-					}
-				}
-				if (!dist[v].has_value()) break;
-				nodes[v].set_color(1);
-				for (typename std::list<edge>::const_iterator it = incidences_list[v].cbegin(); it != incidences_list[v].cend(); it++) {
-					WType len = (*it).get_weight();
-					size_t id_to = (*it).get_to();
-					if ((!dist[id_to].has_value()) || dist[id_to].value() > dist[v].value() + len) {
-						dist[id_to] = dist[v].value() + len;
-						parents[id_to] = &(*it);
-					}
-				}
+			if (isWeight()) {
+				return find_min_dist_dijkstra(id_f, id_t);
 			}
-			for (typename std::unordered_map<size_t, node>::iterator it = nodes.begin(); it != nodes.end(); it++) {
-				(*it).second.set_color(0);
-			}
-			if (!dist[id_t].has_value()) throw SetException(GraphNotConnective);
-			path res;
-			for (size_t cur_id = id_t; cur_id != id_f; cur_id = parents[cur_id]->get_from()) {
-				res.push_tobegin(*parents[cur_id]);
-			}
-			return res;
+			else return find_min_dist_bfs(id_f, id_t);
+		}
+		bool isWeight() const noexcept {
+			return weight_edges != 0;
 		}
 		void add_node(size_t id, NodeInfo inf = NodeInfo()) {
 			if (nodes.find(id) == nodes.end()) {
@@ -320,8 +371,10 @@ namespace graph_ns {
 		}
 		void add_edge(size_t id_from, size_t id_to, WType weight = 1, EdgeInfo inf = EdgeInfo()) {
 			if (nodes.find(id_from) == nodes.end() || nodes.find(id_to) == nodes.end()) throw SetException(NoSuchElement);
-			if (isDirected || edges.find(edge(id_to, id_from, weight, inf)) == edges.end())
+			if (isDirected || edges.find(edge(id_to, id_from, weight, inf)) == edges.end()) {
 				edges.emplace(edge(id_from, id_to, weight, inf));
+				if (weight != 1) weight_edges++;
+			}
 			if (std::find(incidences_list[id_from].begin(), incidences_list[id_from].end(), edge(id_from, id_to, weight, inf)) == incidences_list[id_from].end())
 			{
 				if (isDirected || (std::find(incidences_list[id_from].begin(), incidences_list[id_from].end(), edge(id_to, id_from, weight, inf)) == incidences_list[id_from].end()))
@@ -381,6 +434,7 @@ namespace graph_ns {
 					typename std::set<edge>::iterator itx = std::find(edges.begin(), edges.end(), *it_cur);
 					if (itx != edges.end()) {
 						edges.erase(itx);
+						if (weight != 1) weight_edges--;
 						m--;
 					}
 					incidences_list[id_from].erase(it_cur);
@@ -460,8 +514,8 @@ namespace graph_ns {
 			}
 		}
 	public:
-		std::list<directed_graph<WType, NodeInfo, EdgeInfo>> connect_components() {
-			std::list<directed_graph<WType, NodeInfo, EdgeInfo>> res;
+		std::vector<directed_graph<WType, NodeInfo, EdgeInfo>> connect_components() {
+			std::vector<directed_graph<WType, NodeInfo, EdgeInfo>> res;
 			std::vector<size_t> order;
 			for (typename std::unordered_map<size_t, node>::iterator it = base::nodes.begin(); it != base::nodes.end(); it++) {
 				if ((*it).second.get_color() == 0)
@@ -481,7 +535,7 @@ namespace graph_ns {
 			}
 			return res;
 		}
-		void visualize() const noexcept {
+		void visualize() noexcept {
 			std::ofstream ofs("g.dot");
 			ofs << "digraph T {\n";
 			for (typename std::unordered_map<size_t, node>::const_iterator it = base::nodes.cbegin(); it != base::nodes.cend(); it++) {
@@ -496,7 +550,7 @@ namespace graph_ns {
 			system("dot g.dot -T png -o g.png");
 			system("g.png");
 		}
-		void visualize_path(const path& path, size_t color) noexcept {
+		void visualize(const path& path, size_t color) noexcept {
 			for (typename std::list<edge>::const_iterator it = path.get_chain().cbegin(); it != path.get_chain().cend(); it++) {
 				if (base::edges.find(*it) != base::edges.end()) {
 					base::edges.erase((*it));
@@ -521,7 +575,7 @@ namespace graph_ns {
 			}
 
 		}
-		void visualize_other(const directed_graph& other, size_t color) noexcept {
+		void visualize(const directed_graph& other, size_t color) noexcept {
 			for (typename std::unordered_map<size_t, std::list<edge>>::const_iterator it = other.incidences_list.cbegin(); it != other.incidences_list.cend(); it++) {
 				if (base::nodes.find((*it).first) != base::nodes.cend()) {
 					base::nodes[(*it).first].set_color(color);
@@ -614,31 +668,50 @@ namespace graph_ns {
 			ofs << "label=\"" << ed.get_info() << " {" << ed.get_weight() << "}" << "\"];\n";
 		}
 	public:
-		std::list<undirected_graph<WType, NodeInfo, EdgeInfo>> skeleton() {
-			std::list<undirected_graph<WType, NodeInfo, EdgeInfo>> ans;
-			std::list<undirected_graph<WType, NodeInfo, EdgeInfo>> cc = connect_components();
-			for (typename std::list<undirected_graph<WType, NodeInfo, EdgeInfo>>::const_iterator it_cc = cc.cbegin(); it_cc != cc.cend(); it_cc++) {
+		std::vector<undirected_graph<WType, NodeInfo, EdgeInfo>> skeleton() {
+			std::vector<undirected_graph<WType, NodeInfo, EdgeInfo>> ans;
+			size_t cur_bouqet = 1;
+			std::vector<undirected_graph<WType, NodeInfo, EdgeInfo>> cc = connect_components();
+			for (typename std::vector<undirected_graph<WType, NodeInfo, EdgeInfo>>::iterator it_cc = cc.begin(); it_cc != cc.end(); it_cc++) {
 				undirected_graph<WType, NodeInfo, EdgeInfo> res;
-				const std::unordered_map<size_t, node>& nodes = (*it_cc).nodes;
-				res.nodes.emplace((*(*it_cc).edges.cbegin()).get_from(), (*nodes.find((*(*it_cc).edges.cbegin()).get_from())).second);
+				std::vector<size_t> bouqettes(1);
+				res.nodes.emplace((*(*it_cc).edges.cbegin()).get_from(), (*base::nodes.find((*(*it_cc).edges.cbegin()).get_from())).second);
 				for (typename std::set<edge, typename base::less_x>::const_iterator it = (*it_cc).edges.cbegin(); it != (*it_cc).edges.cend(); it++) {
-					if ((res.nodes.find((*it).get_from()) == res.nodes.cend()) ^ ((res.nodes.find((*it).get_to()) == res.nodes.cend()))) {
-						res.nodes[(*it).get_from()] = (*nodes.find((*it).get_from())).second;
-						res.nodes[(*it).get_to()] = (*nodes.find((*it).get_to())).second;
+					typename std::unordered_map<size_t, node>::iterator from = base::nodes.find((*it).get_from());
+					typename std::unordered_map<size_t, node>::iterator to = base::nodes.find((*it).get_to());
+					if ((*to).second.get_color() == 0 && (*from).second.get_color() == 0) {
+						res.nodes[(*it).get_from()] = (*from).second;
+						res.nodes[(*it).get_to()] = (*to).second;
+						base::nodes[(*it).get_to()].set_color(cur_bouqet);
+						base::nodes[(*it).get_from()].set_color(cur_bouqet);
+						bouqettes.push_back(cur_bouqet);
+						cur_bouqet++;
 						res.add_edge((*it).get_from(), (*it).get_to(), (*it).get_weight(), (*it).get_info());
 					}
-					else if (res.nodes.find((*it).get_from()) == res.nodes.cend()) {
-						res.nodes[(*it).get_from()] = (*nodes.find((*it).get_from())).second;
-						res.nodes[(*it).get_to()] = (*nodes.find((*it).get_to())).second;
+					else if (bouqettes[(*to).second.get_color()] != bouqettes[(*from).second.get_color()]) {
+						if ((*to).second.get_color() == 0) {
+							res.nodes[(*it).get_to()] = (*to).second;
+							base::nodes[(*it).get_to()].set_color((*from).second.get_color());
+						}
+						else if ((*from).second.get_color() == 0) {
+							res.nodes[(*it).get_from()] = (*from).second;
+							base::nodes[(*it).get_from()].set_color((*to).second.get_color());
+						}
+						else {
+							bouqettes[(*from).second.get_color()] = (*to).second.get_color();
+						}
 						res.add_edge((*it).get_from(), (*it).get_to(), (*it).get_weight(), (*it).get_info());
 					}
 				}
 				ans.push_back(res);
 			}
+			for (typename std::unordered_map<size_t, node>::iterator it = base::nodes.begin(); it != base::nodes.end(); it++) {
+				(*it).second.set_color(0);
+			}
 			return ans;
 		}
-		std::list<undirected_graph<WType, NodeInfo, EdgeInfo>> connect_components() {
-			std::list<undirected_graph<WType, NodeInfo, EdgeInfo>> res;
+		std::vector<undirected_graph<WType, NodeInfo, EdgeInfo>> connect_components() {
+			std::vector<undirected_graph<WType, NodeInfo, EdgeInfo>> res;
 			for (typename std::unordered_map<size_t, node>::iterator it = base::nodes.begin(); it != base::nodes.end(); it++) {
 				if ((*it).second.get_color() == 0) {
 					(*it).second.set_color(1);
@@ -653,7 +726,7 @@ namespace graph_ns {
 			}
 			return res;
 		}
-		void visualize() const noexcept {
+		void visualize() noexcept {
 			std::ofstream ofs("g.dot");
 			ofs << "graph T {\n";
 			for (typename std::unordered_map<size_t, node>::const_iterator it = base::nodes.cbegin(); it != base::nodes.cend(); it++) {
@@ -668,7 +741,7 @@ namespace graph_ns {
 			system("dot g.dot -T png -o g.png");
 			system("g.png");
 		}
-		void visualize_path(const path& path, size_t color) noexcept {
+		void visualize(const path& path, size_t color) noexcept {
 			for (typename std::list<edge>::const_iterator it = path.get_chain().cbegin(); it != path.get_chain().cend(); it++) {
 				edge r_ed((*it).get_to(), (*it).get_from(), (*it).get_weight(), (*it).get_info(), (*it).get_color());
 				if (base::edges.find(*it) != base::edges.end()) {
@@ -708,7 +781,7 @@ namespace graph_ns {
 				}
 			}
 		}
-		void visualize_other(const undirected_graph& other, size_t color) noexcept {
+		void visualize(const undirected_graph& other, size_t color) noexcept {
 			for (typename std::unordered_map<size_t, std::list<edge>>::const_iterator it = other.incidences_list.cbegin(); it != other.incidences_list.cend(); it++) {
 				if (base::nodes.find((*it).first) != base::nodes.end()) {
 					base::nodes[(*it).first].set_color(color);
@@ -725,7 +798,7 @@ namespace graph_ns {
 				}
 				else if (base::edges.find(r_ed) != base::edges.end()) {
 					base::edges.erase(r_ed);
-					ed.set_color(color);
+					r_ed.set_color(color);
 					base::edges.emplace(r_ed);
 				}
 				else throw SetException(NoSuchElement);
