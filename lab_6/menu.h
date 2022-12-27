@@ -107,6 +107,18 @@ void common_cmd(const string& cmd, graph<double, isDirected>* gr) {
 	else throw SetException(UnknownCommand);
 }
 
+void help() {
+	cout << "\n";
+	cout << "\tСписок команд: \n\n\t[] - обязательные аргументы, {} - опциональные аргументы\n\n\t=======================================\n\n\tcreate {-d (орграф)} {-f <путь> (чтение из файла)} {-s (невзвешенный граф)} - создать граф\n\tprint - вывести граф\n\tmid_dist [-f <id from>] [-s <id to>] - кратчайший путь\n\tadd - объединить графы";
+	cout << "\n\tvisualize - визуализировать граф";
+	cout << "\n\tadd_node, add_edge - добавить элемент в граф";
+	cout << "\n\tremove_node, remove_edge - удалить элемент из графа";
+	cout << "\n\ttranponate - транспонировать (для орграфа)";
+	cout << "\n\tconnect - компоненты (сильной для орграфа) связности";
+	cout << "\n\tskeleton - минимальный остов (для неорграфа)";
+	cout << "\n\t======================================= \n\n";
+}
+
 string undirected_graph_menu(undirected_graph<double>* gr) {
 	string cmd;
 	cout << "\n[System] Enter command:\n>> ";
@@ -121,6 +133,9 @@ string undirected_graph_menu(undirected_graph<double>* gr) {
 					cout << "\n===================\n";
 				}
 				gr->visualize(scc);
+			}
+			else if (cmd_type == "help") {
+				help();
 			}
 			else if (cmd_type == "skeleton") {
 				vector<undirected_graph<double>> scc = gr->skeleton();
@@ -199,6 +214,9 @@ string directed_graph_menu(directed_graph<double>* gr) {
 				delete _old;
 				cout << "\n[System] Succsessfully transponated\n";
 
+			}
+			else if (cmd_type == "help") {
+				help();
 			}
 			else if (cmd_type == "add") {
 				vector<Argument<string>>* argList = _MakeArgumentList<string>(cmd, false);
@@ -300,12 +318,18 @@ void main_listener() {
 				}
 				cmd_type = _GetCommand(cmd);
 			}
+			else if (cmd_type == "help") {
+				help();
+				main_listener();
+				return;
+			}
 			else throw SetException(UnknownCommand);
 		}
 	}
 	catch (SetException e) {
 		cout << e.message();
 		main_listener();
+		return;
 	}
 	return;
 }

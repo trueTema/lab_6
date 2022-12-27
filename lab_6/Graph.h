@@ -71,6 +71,12 @@ namespace graph_ns {
 		void set_color(size_t color) noexcept {
 			this->color = color;
 		}
+		bool operator==(const node& other) const {
+			return this->id == other.id && other.info == this->info;
+		}
+		bool operator!=(const node& other) const {
+			return !(this->id == other.id && other.info == this->info);
+		}
 	};
 
 	template<typename EdgeInfo, typename WType>
@@ -131,6 +137,8 @@ namespace graph_ns {
 		}
 	};
 
+
+
 	template<typename T>
 	struct max_value {
 		static T get() noexcept {
@@ -174,7 +182,9 @@ namespace graph_ns {
 			return chain;
 		}
 		void push_back(const edge<EdgeInfo, WType>& ed) {
-			if (chain.size() == 0 || (*chain.end()).get_to() == ed.get_from()) {
+			typename std::list<edge<EdgeInfo, WType>>::iterator it = chain.end();
+			if (chain.size() > 0) it--;
+			if (chain.size() == 0 || (*it).get_to() == ed.get_from()) {
 				chain.push_back(ed);
 				count++;
 				len += ed.get_weight();
@@ -196,6 +206,13 @@ namespace graph_ns {
 			os << "\nTotal: " << len << "\n";
 			return os;
 		}
+		bool operator==(const path& other) const {
+			return this->chain == other.chain;
+		}
+
+		bool operator!=(const path& other) const {
+			return !(this->chain == other.chain);
+		}
 		path& operator+=(const path& other) {
 			if ((*other.chain.begin()).get_from() == (*chain.end()).get_to()) {
 				for (typename std::list<edge<EdgeInfo, WType>>::const_iterator it = other.chain.cbegin(); it != other.chain.cend(); it++) {
@@ -211,7 +228,17 @@ namespace graph_ns {
 		using node = node<NodeInfo>;
 		using edge = edge<EdgeInfo, WType>;
 		using path = path<EdgeInfo, WType>;
-
+		struct less_x {
+			constexpr bool operator()(const edge& first, const edge& second) const noexcept {
+				if (first.get_weight() == second.get_weight()) {
+					if (first.get_from() == second.get_from()) {
+						return first.get_to() < second.get_to();
+					}
+					return first.get_from() < second.get_from();
+				}
+				return first.get_weight() < second.get_weight();
+			}
+		};
 	private:
 		struct greater_pair {
 			_NODISCARD constexpr bool operator()(const std::pair<size_t, WType>& first, const std::pair<size_t, WType>& second) const noexcept {
@@ -297,17 +324,7 @@ namespace graph_ns {
 		size_t weight_edges = 0;
 		std::unordered_map<size_t, std::list<edge>> incidences_list;
 		std::unordered_map<size_t, node> nodes;
-		struct less_x {
-			constexpr bool operator()(const edge& first, const edge& second) const noexcept {
-				if (first.get_weight() == second.get_weight()) {
-					if (first.get_from() == second.get_from()) {
-						return first.get_to() < second.get_to();
-					}
-					return first.get_from() < second.get_from();
-				}
-				return first.get_weight() < second.get_weight();
-			}
-		};
+		
 
 		std::set<edge, less_x> edges;
 		void print_node(std::ofstream& ofs, const node& nd) const noexcept {
@@ -418,7 +435,12 @@ namespace graph_ns {
 		bool isWeight() const noexcept {
 			return weight_edges != 0;
 		}
-
+		std::set<edge, less_x> get_edges() const noexcept {
+			return edges;
+		}
+		std::unordered_map<size_t, node> get_nodes() const noexcept {
+			return nodes;
+		}
 		void write_fstream(std::ofstream& ofs) const noexcept {
 			if (!ofs.is_open()) throw SetException(CannotReadFile);
 			ofs << n << " " << m << "\n";
@@ -612,7 +634,26 @@ namespace graph_ns {
 		}
 		~graph() = default;
 
-
+		bool operator==(const graph<WType, isDirected, NodeInfo, EdgeInfo>& other) const {
+			for (typename std::set<edge>::iterator it = edges.begin(); it != edges.end(); it++) {
+				edge r_ed((*it).get_to(), (*it).get_from(), (*it).get_weight(), (*it).get_info());
+				if (other.edges.find(*it) == other.edges.end() && other.edges.find(r_ed) == other.edges.end()) return false;
+			}
+			for (typename std::unordered_map<size_t, node>::const_iterator it = nodes.cbegin(); it != nodes.cend(); it++) {
+				if (other.nodes.find((*it).first) == other.nodes.cend()) return false;
+			}
+			return this->n == other.n && this->m == other.m;
+		}
+		bool operator!=(const graph<WType, isDirected, NodeInfo, EdgeInfo>& other) const {
+			for (typename std::set<edge>::iterator it = edges.begin(); it != edges.end(); it++) {
+				edge r_ed((*it).get_to(), (*it).get_from(), (*it).get_weight(), (*it).get_info());
+				if (other.edges.find(*it) == other.edges.end() && other.edges.find(r_ed) == other.edges.end()) return true;
+			}
+			for (typename std::unordered_map<size_t, node>::const_iterator it = nodes.cbegin(); it != nodes.cend(); it++) {
+				if (other.nodes.find((*it).first) == other.nodes.cend()) return true;
+			}
+			return !(this->n == other.n && this->m == other.m);
+		}
 	};
 
 	template<typename WType = int, class NodeInfo = std::string, class EdgeInfo = std::string>
@@ -796,6 +837,19 @@ namespace graph_ns {
 				res.add_edge(i.get_to(), i.get_from(), i.get_weight(), i.get_info());
 			}
 			return res;
+		}
+		bool operator==(const directed_graph<WType, NodeInfo, EdgeInfo>& other) const {
+			for (typename std::unordered_map<size_t, node>::const_iterator it = base::nodes.cbegin(); it != base::nodes.cend(); it++) {
+				if (other.nodes.find((*it).first) == other.nodes.cend()) return false;
+			}
+			return this->n == other.n && this->m == other.m && base::edges == other.edges;
+		}
+		bool operator!=(const directed_graph<WType, NodeInfo, EdgeInfo>& other) const {
+			for (typename std::unordered_map<size_t, node>::const_iterator it = base::nodes.cbegin(); it != base::nodes.cend(); it++) {
+				if (other.nodes.find((*it).first) == other.nodes.cend()) return true;
+			}
+			return !(this->n == other.n && this->m == other.m && base::edges == other.edges);
+
 		}
 	};
 
@@ -1079,6 +1133,13 @@ namespace graph_ns {
 			for (typename std::set<edge>::const_iterator it = other.edges.cbegin(); it != other.edges.cend(); it++) {
 				this->add_edge((*it).get_from(), (*it).get_to(), (*it).get_weight(), (*it).get_info());
 			}
+		}
+		bool operator==(const undirected_graph<WType, NodeInfo, EdgeInfo>& other) const {
+			
+			return base::operator==(other);
+		}
+		bool operator!=(const undirected_graph<WType, NodeInfo, EdgeInfo>& other) const {
+			return base::operator!=(other);
 		}
 	};
 }
